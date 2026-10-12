@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -36,8 +37,8 @@ func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
 		Error string `json:"error"`
 	}
 
-	type validResponse struct {
-		Valid bool `json:"valid"`
+	type cleanedResponse struct {
+		Clean string `json:"cleaned_body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -55,8 +56,8 @@ func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 		w.Write(data)
 	} else {
-		validR := validResponse{Valid: true}
-		data, _ := json.Marshal(validR)
+		cleanedR := cleanedResponse{Clean: profanityFilter(valid.Body)}
+		data, _ := json.Marshal(cleanedR)
 		w.WriteHeader(200)
 		w.Write(data)
 	}
@@ -79,6 +80,16 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 		fmt.Println("Hits:", cfg.fileserverHits.Load())
 		next.ServeHTTP(w, r)
 	})
+}
+
+func profanityFilter(unclean string) string {
+	words := strings.Split(unclean, " ")
+	for index := range words {
+		if strings.ToLower(words[index]) == "kerfuffle" || strings.ToLower(words[index]) == "sharbert" || strings.ToLower(words[index]) == "fornax" {
+			words[index] = "****"
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 func main() {
