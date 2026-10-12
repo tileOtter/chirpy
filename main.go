@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,10 +15,52 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	returnString := fmt.Sprintf("Hits: %d", cfg.fileserverHits.Load())
+	returnString := fmt.Sprintf(
+		`<html>
+		<body>
+			<h1>Welcome, Chirpy Admin</h1>
+			<p>Chirpy has been visited %d times!</p>
+		</body>
+	</html>`, cfg.fileserverHits.Load())
 	w.Write([]byte(returnString))
+}
+
+func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
+	type validate struct {
+		Body string `json:"body"`
+	}
+
+	type errorResponse struct {
+		Error string `json:"error"`
+	}
+
+	type validResponse struct {
+		Valid bool `json:"valid"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	valid := validate{}
+	err := decoder.Decode(&valid)
+	if err != nil {
+		log.Printf("Error Decoding: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	if len(valid.Body) > 140 {
+		errR := errorResponse{Error: "Chirp is too long"}
+		data, _ := json.Marshal(errR)
+		w.WriteHeader(400)
+		w.Write(data)
+	} else {
+		validR := validResponse{Valid: true}
+		data, _ := json.Marshal(validR)
+		w.WriteHeader(200)
+		w.Write(data)
+	}
+
 }
 
 func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
@@ -48,9 +91,10 @@ func main() {
 	srv.Handler = mux
 
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))
-	mux.HandleFunc("GET /healthz", handlerReadiness)
-	mux.HandleFunc("GET /metrics", apiCfg.handlerMetrics)
-	mux.HandleFunc("POST /reset", apiCfg.handlerReset)
+	mux.HandleFunc("GET /api/healthz", handlerReadiness)
+	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
+	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
+	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValidate)
 
 	log.Printf("Serving on port: %s\n", port)
 	log.Fatal(srv.ListenAndServe())
