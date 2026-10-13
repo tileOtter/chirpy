@@ -1,12 +1,18 @@
 package main
 
 import (
+	"MODULE_PATH/internal/database"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync/atomic"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func handlerReadiness(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +78,7 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	dbQueries      *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -93,10 +100,21 @@ func profanityFilter(unclean string) string {
 }
 
 func main() {
+	godotenv.Load()
+
+	dbURL := os.Getenv("DB_URL")
+
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	dbQueries := database.New(db)
+
 	const port = "8080"
 
 	mux := http.NewServeMux()
 	var apiCfg apiConfig
+	apiCfg.dbQueries = dbQueries
 	var srv http.Server
 	srv.Addr = ":" + port
 	srv.Handler = mux
