@@ -74,7 +74,7 @@ func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
-	plat := os.Getenv("PLATFORM")
+	plat := cfg.platform
 	if plat != "dev" {
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -228,8 +228,10 @@ func main() {
 	const port = "8080"
 
 	mux := http.NewServeMux()
-	var apiCfg apiConfig
-	apiCfg.dbQueries = dbQueries
+	apiCfg := apiConfig{
+		dbQueries: dbQueries,
+		platform:  os.Getenv("PLATFORM"),
+	}
 	var srv http.Server
 	srv.Addr = ":" + port
 	srv.Handler = mux
