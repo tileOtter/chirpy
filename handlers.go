@@ -248,3 +248,38 @@ func (cfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(200)
 	w.Write(mChirps)
 }
+
+func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		log.Printf("Error parsing string: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	chirp, err := cfg.dbQueries.GetChirp(r.Context(), id)
+	if err != nil {
+		log.Printf("Error requesting chirp: %s", err)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	chirpResp := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}
+
+	mChirps, err := json.Marshal(chirpResp)
+	if err != nil {
+		log.Printf("Error Marshaling: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(mChirps)
+}
